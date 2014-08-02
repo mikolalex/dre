@@ -221,6 +221,9 @@
 			return levels_vars[num];
 		}
 		
+		var filter_functions_counter = 1;
+		var filter_functions = {};
+		
 		var nesting_levels = parts[1].split("/");
 		var levels_result = [];
 		var level_num_count = 0;
@@ -232,13 +235,20 @@
 			//console.log('nl', nesting_levels[i]);
 			if(nesting_levels[i][0] === '$'){
 				var res = {};
+				var has_filter = false;
 				if(nesting_levels[i].indexOf('?') !== -1){
 					// It has filter function!
 					nesting_levels[i] = nesting_levels[i].slice(0, -1);
+					has_filter = true;
 				}
 				var name = nesting_levels[i].slice(1);
 				if(!name.length) {
 					name = 'skip_' + skip_counter++;
+				}
+				
+				if(has_filter){
+					filter_functions[name] = filter_functions_counter;
+					filter_functions_counter++;
 				}
 				
 				level_names_to_count[name] = ++level_num_count;
@@ -419,10 +429,10 @@
 		switch(new_tokens[i].type){
 			case 'arr':
 				ko[tk.create_level].before.push({createArray: varname});
-				//console.log('we push array push to', new_tokens[tk.depends_on]);
+				//console.log('we push array push of', tk);
 				ko[tk.push_level].after.push({pushToArray: {
 						arrvar: varname,
-						itemvar: tk.depends_on_var
+						itemvar: tk.item_type === 'layer' ? {field: tk.item_field} : tk.depends_on_var,
 				}});
 			break;
 			case 'func':
@@ -508,7 +518,9 @@
 			before.lpush('for(var ' + levels_vars[i] + ' in data' + vars_brackets_string + '){// ' + levels_result[i].name);
 		}
 		spaces += '    ';
-											
+		if(filter_functions[level_name]){
+			before.lpush('if(arguments[' + filter_functions[level_name] + '] && !arguments[' + filter_functions[level_name] + '](' + current_var + ')) continue;');
+		}								
 		if(ko[level_name] && ko[level_name].before){
 			for(var j in ko[level_name].before){
 				var ob = ko[level_name].before[j];
@@ -589,7 +601,7 @@
 							}
 						break;
 						case 'pushToArray':
-							after.lpush(ob[k].arrvar + '.push(' + ob[k].itemvar + ');');
+							after.lpush(ob[k].arrvar + '.push(' + ((ob[k].itemvar instanceof Object)? current_var + (ob[k].itemvar.field ? '.' + ob[k].itemvar.field : '') : ob[k].itemvar) + ');');
 						break;
 					}
 				}
@@ -611,7 +623,7 @@
 			
 		}
 		
-		//console.log('var mk = function(data){' + func_body_string + '\
+//		console.log('var mk = function(data){' + func_body_string + '\
 //}');
 		var func = new Function('data', func_body_string);
 		return func;
