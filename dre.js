@@ -42,7 +42,9 @@
 				if(conf.token.indexOf('%') === 0){// it has defined scope
 					body = body.split('{');
 					conf.create_level = body[0];
+					//conf.push_level = body[0];
 					conf.defined_scope = body[0];
+					conf.create_level_decrease = true;
 					body = body[1];
 				}
 				var fields = body.split(",");
@@ -66,8 +68,7 @@
 							} else {
 								res.key_layer = this_key;
 							}
-							conf.create_level = res.key_layer;
-							//console.log('key layeer is', res.key_layer, conf.create_level);
+							conf.push_level = res.key_layer;
 						break;
 						case '@': // its link to another var 
 							res.key_type = 'link_to_another_token';
@@ -97,6 +98,7 @@
 					}
 					conf.fields.push(res);
 				}
+				if(!conf.push_level) conf.push_level = conf.create_level;
 				conf.name = objnames++;
 			},
 			arr: function(conf){
@@ -122,7 +124,8 @@
 					break;
 					case '@': // its link to another var 
 						conf.item_type = 'link_to_another_token';
-						conf.depends_on = body.slice(1);
+						conf.depends_on = Number(body.slice(1)) + 0;
+						
 						conf.push_level = 'ask your child';
 					break;
 				}
@@ -316,23 +319,46 @@
 	var get_token_var_name = function(token){
 		return token.type + token.name;
 	}
+	
+	var next_level = function(level){
+		//console.log('WE ARE GIVEN', level, 'we give', level_counts_to_names[Number(level_names_to_count[level]) + 1]);
+		return level_counts_to_names[Number(level_names_to_count[level]) + 1];
+	}
+	var prev_level = function(level){
+		//console.log('WE ARE GIVEN', level, 'we give', level_counts_to_names[Number(level_names_to_count[level]) + 1]);
+		return level_counts_to_names[Number(level_names_to_count[level]) - 1];
+	}
 
 	var set_level = function(token, level){
+		//console.log('setting level for', token.type + token.name, level, token.create_level, token.push_level, token);
 		switch(token.type){
 			case 'arr':
 				token.create_level = level;
-				if(token.depends_on){
-					token.depends_on_var = get_token_var_name(new_tokens[token.depends_on]);
-					set_level(new_tokens[token.depends_on], level);
+				if(token.depends_on !== undefined){
+					var dependent = new_tokens[token.depends_on];
+					token.depends_on_var = get_token_var_name(dependent);
+					set_level(new_tokens[token.depends_on], next_level(level));
+					token.push_level = next_level(level);
 				}
 			break;
 			case 'obj':
+				if(token.create_level_decrease){
+					token.create_level = prev_level(token.create_level);
+				}
 				if(token.create_level && token.create_level !== 'inherit'){
 					level = token.create_level;
 				} else {
 					token.create_level = level;
 				}
-				token.push_level = level;
+				if(!token.push_level || token.push_level === 'inherit'){
+					token.push_level = level;
+				} else {
+					level = token.push_level;
+				}
+				if(token.defined_scope){
+					//console.log('DS', token.defined_scope, level, token.push_level);
+					//level = token.defined_scope;
+				}
 				for(var i in token.fields){
 					if(token.fields[i].key_depends_on){
 						token.fields[i].key_depends_on_var = new_tokens[token.fields[i].key_depends_on].type + token.fields[i].key_depends_on;
@@ -357,6 +383,7 @@
 		}
 	}	
 
+	//console.log('OLD TOKENS', new_tokens);
 	set_level(new_tokens[new_tokens.length - 1], 0);
 	//console.log('NEW TOKENS', new_tokens);
 
@@ -377,9 +404,8 @@
 	}
 	var first_var_name = true;
 	var min_level = 10000;
-	new_tokens.reverse();
-	var LEVEL = '0';
-	for(var i in new_tokens){
+	//new_tokens.reverse();
+	for(var i  = new_tokens.length - 1; i >= 0; i--){
 		var tk = new_tokens[i];
 		var varname = get_token_var_name(tk);
 		//if(tk.create_level === 0){
@@ -394,7 +420,7 @@
 			case 'arr':
 				ko[tk.create_level].before.push({createArray: varname});
 				//console.log('we push array push to', new_tokens[tk.depends_on]);
-				ko[new_tokens[tk.depends_on].create_level].after.push({pushToArray: {
+				ko[tk.push_level].after.push({pushToArray: {
 						arrvar: varname,
 						itemvar: tk.depends_on_var
 				}});
@@ -426,12 +452,11 @@
 				if(tk.defined_scope){
 					console.log('!!!!!!!!');
 				}
-				ko[LEVEL].before.push({assignObj: {name: varname, fields: tk.fields}});
-				//console.log('cur, next', tk.create_level, next_level, level_counts_to_names, level_names_to_count);
-				ko[tk.create_level].after.push({fillObj: {name: varname, fields: tk.fields}});
+				//console.log('AAA', ko[tk.create_level], ko, tk.create_level);
+				ko[tk.create_level].before.push({assignObj: {name: varname, fields: tk.fields}});
+				ko[tk.push_level].after.push({fillObj: {name: varname, fields: tk.fields}});
 			}
 		}
-		LEVEL = tk.create_level;
 	}
 	//console.log('ko', ko, 'fist var name', first_var_name);
 
@@ -579,15 +604,15 @@
 	before.lpush('//console.log(' + current_var + ');')
 	
 	var func_body_string = before.join('') + after.join('') + '\n\
-	return ' + first_var_name + ';';
+	return ' + first_var_name + ';\n';
 
 
 		} else { // just performing functions
 			
 		}
 		
-		console.log('var mk = function(data){' + func_body_string + '\
-}');
+		//console.log('var mk = function(data){' + func_body_string + '\
+//}');
 		var func = new Function('data', func_body_string);
 		return func;
 	}
