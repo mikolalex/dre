@@ -346,9 +346,10 @@
 				token.create_level = level;
 				if(token.depends_on !== undefined){
 					var dependent = new_tokens[token.depends_on];
+					dependent.user = token;
 					token.depends_on_var = get_token_var_name(dependent);
-					set_level(new_tokens[token.depends_on], next_level(level));
 					token.push_level = next_level(level);
+					set_level(new_tokens[token.depends_on], next_level(level));
 				}
 			break;
 			case 'obj':
@@ -370,6 +371,9 @@
 					//level = token.defined_scope;
 				}
 				for(var i in token.fields){
+					if(token.fields[i].val_layer){
+						level = token.push_level = token.create_level = token.user.push_level = token.fields[i].val_layer;
+					}
 					if(token.fields[i].key_depends_on){
 						token.fields[i].key_depends_on_var = new_tokens[token.fields[i].key_depends_on].type + token.fields[i].key_depends_on;
 						set_level(new_tokens[token.fields[i].key_depends_on], level);
