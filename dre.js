@@ -223,6 +223,7 @@
 		
 		var filter_functions_counter = 1;
 		var filter_functions = {};
+		var filter_functions_keys = {};
 		
 		var nesting_levels = parts[1].split("/");
 		var levels_result = [];
@@ -234,11 +235,15 @@
 		for(var i in nesting_levels){
 			//console.log('nl', nesting_levels[i]);
 			if(nesting_levels[i][0] === '$'){
-				var res = {};
-				var has_filter = false;
+				var res = {}, has_filter = false, func_field = false;
 				if(nesting_levels[i].indexOf('?') !== -1){
 					// It has filter function!
-					nesting_levels[i] = nesting_levels[i].slice(0, -1);
+					var func_parts = nesting_levels[i].split('?');
+					nesting_levels[i] = func_parts[0];
+					var func_parts = func_parts[1].split('.');
+					if(func_parts[1]){
+						func_field = func_parts[1];
+					}
 					has_filter = true;
 				}
 				var name = nesting_levels[i].slice(1);
@@ -249,6 +254,9 @@
 				if(has_filter){
 					filter_functions[name] = filter_functions_counter;
 					filter_functions_counter++;
+				}
+				if(func_field){
+					filter_functions_keys[name] = func_field;
 				}
 				
 				level_names_to_count[name] = ++level_num_count;
@@ -523,7 +531,17 @@
 		}
 		spaces += '    ';
 		if(filter_functions[level_name]){
-			before.lpush('if(arguments[' + filter_functions[level_name] + '] && !arguments[' + filter_functions[level_name] + '](' + current_var + ')) continue;');
+			var func_name = 'arguments[' + filter_functions[level_name] + ']';
+			var arg_name = current_var + (filter_functions_keys[level_name]?'.' + filter_functions_keys[level_name]:'');
+			before.lpush('if(' + func_name + ' instanceof Array){');
+				before.lpush('if(' + func_name + '.indexOf(' + arg_name + ') == -1) { continue; }', 1);
+			before.lpush('} else {');
+				before.lpush('if(' + func_name + ' instanceof Function){', 1);
+					before.lpush('if(!' + func_name + '(' + arg_name + ')) continue;', 2);
+				before.lpush('} else {', 1)
+					before.lpush('if(' + func_name + ' != ' + arg_name + ') continue;', 2);
+				before.lpush('}', 1);
+			before.lpush('}');
 		}								
 		if(ko[level_name] && ko[level_name].before){
 			for(var j in ko[level_name].before){
