@@ -95,6 +95,10 @@
 							res.val_type = 'link_to_another_token';
 							res.val_depends_on = val.slice(1);
 						break;
+						default: // it's static name  
+							res.val_type = 'static';
+							res.val_val = val;
+						break;
 					}
 					conf.fields.push(res);
 				}
@@ -538,7 +542,7 @@
 			before.lpush('} else {');
 				before.lpush('if(' + func_name + ' instanceof Function){', 1);
 					before.lpush('if(!' + func_name + '(' + arg_name + ')) continue;', 2);
-				before.lpush('} else {', 1)
+				before.lpush('} else { //console.log("comparing as string", ' + func_name + ', ' + arg_name + '); ', 1)
 					before.lpush('if(' + func_name + ' != ' + arg_name + ') continue;', 2);
 				before.lpush('}', 1);
 			before.lpush('}');
@@ -607,6 +611,9 @@
 										}
 										//after.push(current_var + (field.val_field ? '.' + field.val_field : '') + ';');
 									break;
+									case 'static':
+										after.push(field.val_val + ';');
+									break;
 								}
 								switch(field.key_type){
 									case 'static':
@@ -645,8 +652,7 @@
 			
 		}
 		
-//		console.log('var mk = function(data){' + func_body_string + '\
-//}');
+		//console.log('var mk = function(data){' + func_body_string + '\}');
 		var func = new Function('data', func_body_string);
 		return func;
 	}
@@ -666,6 +672,14 @@
 		var res = func.apply(null, new_args);
 		//console.log('FUNCTION RETURNED:', res);
 		return res;
+	}
+	
+	lib.debug = function(expr){
+		var regex_hash = hashCode.apply(expr);
+		if(!compiled_expressions_table[regex_hash]){
+			compiled_expressions_table[regex_hash] = compile(expr);
+		}
+		console.log(compiled_expressions_table[regex_hash]);
 	}
 
 	dre = lib;// setting it global
