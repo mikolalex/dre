@@ -384,7 +384,10 @@
 				}
 				for(var i in token.fields){
 					if(token.fields[i].val_layer){
-						level = token.push_level = token.create_level = token.user.push_level = token.fields[i].val_layer;
+						if(token.user){
+							 token.create_level = token.user.push_level = token.fields[i].val_layer
+						}
+						level = token.push_level = token.fields[i].val_layer;
 					}
 					if(token.fields[i].key_depends_on){
 						token.fields[i].key_depends_on_var = new_tokens[token.fields[i].key_depends_on].type + token.fields[i].key_depends_on;
@@ -636,7 +639,6 @@
 				}
 			}
 		}
-		
 	}
 //////////////////////////////////////////////////////////////
 	
