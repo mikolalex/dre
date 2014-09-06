@@ -64,7 +64,7 @@
 							if(this_key.indexOf('.') !== -1){// some field of object
 								var ps = this_key.split('.');
 								res.key_layer = ps[0];
-								res.key_field = ps[1];
+								res.key_field = ps.slice(1).join('.');
 							} else {
 								res.key_layer = this_key;
 							}
@@ -86,7 +86,7 @@
 							if(this_val.indexOf('.') !== -1){// some field of object
 								var ps = this_val.split('.');
 								res.val_layer = ps[0];
-								res.val_field = ps[1];
+								res.val_field = ps.slice(1).join('.');
 							} else {
 								res.val_layer = this_val;
 							}
